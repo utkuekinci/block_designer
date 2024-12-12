@@ -14,8 +14,9 @@ class DigitalDesignApp:
 
         # Bind events for interaction
         self.canvas.bind("<Button-3>", self.open_block_popup)  # Right-click for adding blocks
-        self.canvas.bind("<Button-1>", self.start_connection)
-        self.canvas.bind("<ButtonRelease-1>", self.complete_connection)
+        self.canvas.bind("<Button-1>", self.start_action)
+        self.canvas.bind("<B1-Motion>", self.drag_block)
+        self.canvas.bind("<ButtonRelease-1>", self.complete_action)
         self.canvas.bind("<Motion>", self.highlight_port)
 
         # Data storage
@@ -24,6 +25,7 @@ class DigitalDesignApp:
         self.temp_line = None  # Temporary line for connecting
 
         self.start_port = None  # Start port for a connection
+        self.selected_block = None  # Block currently being dragged
         self.history = []  # For undo/redo functionality
         self.redo_stack = []
 
@@ -110,11 +112,75 @@ class DigitalDesignApp:
         self.history.append(("add_block", block))
         self.redo_stack.clear()
 
-    def start_connection(self, event):
-        """Start a connection by clicking on a port."""
+    def start_action(self, event):
+        """Start either a connection or block movement."""
         clicked_port = self.get_port_at(event.x, event.y)
         if clicked_port:
+            # Start a connection
             self.start_port = clicked_port
+            # Draw a temporary line for visual feedback
+            start_coords = self.canvas.coords(clicked_port)
+            x = (start_coords[0] + start_coords[2]) / 2
+            y = (start_coords[1] + start_coords[3]) / 2
+            self.temp_line = self.canvas.create_line(x, y, event.x, event.y, arrow=tk.LAST, dash=(4, 2))
+        else:
+            # Check if a block is clicked for dragging
+            for block in self.blocks:
+                rect_coords = self.canvas.coords(block["rect"])
+                if rect_coords[0] <= event.x <= rect_coords[2] and rect_coords[1] <= event.y <= rect_coords[3]:
+                    self.selected_block = block
+                    self.offset_x = event.x - block["x"]
+                    self.offset_y = event.y - block["y"]
+                    return
+            # Clear the selected block if clicking elsewhere
+            self.selected_block = None
+
+    def drag_block(self, event):
+        """Move the block while dragging, or update the temporary connection line."""
+        if self.selected_block:
+            block = self.selected_block
+            dx = event.x - block["x"] - self.offset_x
+            dy = event.y - block["y"] - self.offset_y
+            self.canvas.move(block["rect"], dx, dy)
+            self.canvas.move(block["text"], dx, dy)
+            for port in block["inputs"] + block["outputs"]:
+                self.canvas.move(port, dx, dy)
+
+            # Update connection lines linked to the block
+            self.update_connections(block, dx, dy)
+
+            block["x"] += dx
+            block["y"] += dy
+        elif self.temp_line:
+            # Update the temporary line to follow the mouse
+            start_coords = self.canvas.coords(self.start_port)
+            x1 = (start_coords[0] + start_coords[2]) / 2
+            y1 = (start_coords[1] + start_coords[3]) / 2
+            self.canvas.coords(self.temp_line, x1, y1, event.x, event.y)
+
+    def update_connections(self, block, dx, dy):
+        """Update the positions of connections linked to a moved block."""
+        for connection in self.connections:
+            start_port, end_port, line = connection
+            if start_port in block["outputs"] or end_port in block["inputs"]:
+                start_coords = self.canvas.coords(start_port)
+                end_coords = self.canvas.coords(end_port)
+                self.canvas.coords(line,
+                    (start_coords[0] + start_coords[2]) / 2,
+                    (start_coords[1] + start_coords[3]) / 2,
+                    (end_coords[0] + end_coords[2]) / 2,
+                    (end_coords[1] + end_coords[3]) / 2
+                )
+
+    def complete_action(self, event):
+        """Complete the current action, either connecting or moving a block."""
+        if self.temp_line:
+            self.canvas.delete(self.temp_line)
+            self.temp_line = None
+
+        if self.start_port:
+            self.complete_connection(event)
+        self.selected_block = None
 
     def complete_connection(self, event):
         """Complete a connection by clicking on a valid destination port."""
