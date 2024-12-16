@@ -156,7 +156,9 @@ class DigitalDesignApp:
             start_coords = self.canvas.coords(self.start_port)
             x1 = (start_coords[0] + start_coords[2]) / 2
             y1 = (start_coords[1] + start_coords[3]) / 2
-            self.canvas.coords(self.temp_line, x1, y1, event.x, event.y)
+            end_x, end_y = event.x, event.y
+            mid_x, mid_y = x1, end_y
+            self.canvas.coords(self.temp_line, x1, y1, mid_x, mid_y, end_x, end_y)
 
     def update_connections(self, block, dx, dy):
         """Update the positions of connections linked to a moved block."""
@@ -165,12 +167,18 @@ class DigitalDesignApp:
             if start_port in block["outputs"] or end_port in block["inputs"]:
                 start_coords = self.canvas.coords(start_port)
                 end_coords = self.canvas.coords(end_port)
-                self.canvas.coords(line,
-                    (start_coords[0] + start_coords[2]) / 2,
-                    (start_coords[1] + start_coords[3]) / 2,
-                    (end_coords[0] + end_coords[2]) / 2,
-                    (end_coords[1] + end_coords[3]) / 2
-                )
+                self.canvas.coords(line, *self.get_orthogonal_coords(start_coords, end_coords))
+
+    def get_orthogonal_coords(self, start_coords, end_coords):
+        """Calculate orthogonal (90-degree corner) coordinates for the connection."""
+        start_x = (start_coords[0] + start_coords[2]) / 2
+        start_y = (start_coords[1] + start_coords[3]) / 2
+        end_x = (end_coords[0] + end_coords[2]) / 2
+        end_y = (end_coords[1] + end_coords[3]) / 2
+
+        mid_x = start_x + 20 if start_x < end_x else start_x - 20
+        mid_y = end_y
+        return [start_x, start_y, mid_x, start_y, mid_x, mid_y, end_x, end_y]
 
     def complete_action(self, event):
         """Complete the current action, either connecting or moving a block."""
