@@ -8,9 +8,31 @@ class DigitalDesignApp:
         self.root = root
         self.root.title("Digital Design Tool")
 
-        # Canvas for drawing
-        self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        # Canvas for drawing with scrolling
+        self.canvas_frame = tk.Frame(self.root)
+        self.canvas_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.h_scrollbar = tk.Scrollbar(self.canvas_frame, orient=tk.HORIZONTAL)
+        self.h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.v_scrollbar = tk.Scrollbar(self.canvas_frame, orient=tk.VERTICAL)
+        self.v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.canvas = tk.Canvas(
+            self.canvas_frame,
+            width=800,
+            height=600,
+            bg="white",
+            xscrollcommand=self.h_scrollbar.set,
+            yscrollcommand=self.v_scrollbar.set
+        )
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.h_scrollbar.config(command=self.canvas.xview)
+        self.v_scrollbar.config(command=self.canvas.yview)
+
+        # Configure scrolling region
+        self.canvas.configure(scrollregion=(0, 0, 2000, 2000))
 
         # Bind events for interaction
         self.canvas.bind("<Button-3>", self.open_block_popup)  # Right-click for adding blocks
@@ -18,6 +40,7 @@ class DigitalDesignApp:
         self.canvas.bind("<B1-Motion>", self.drag_block)
         self.canvas.bind("<ButtonRelease-1>", self.complete_action)
         self.canvas.bind("<Motion>", self.highlight_port)
+        self.canvas.bind("<Double-Button-1>", self.rename_block)  # Double-click for renaming blocks
 
         # Data storage
         self.blocks = []  # List of blocks with their properties
@@ -320,6 +343,18 @@ class DigitalDesignApp:
             line = self.canvas.create_line(self.canvas.coords(data[0]), self.canvas.coords(data[1]), arrow=tk.LAST)
             self.connections.append((data[0], data[1], line))
             self.history.append(("add_connection", data))
+
+    def rename_block(self, event):
+        """Rename a block when it is double-clicked."""
+        for block in self.blocks:
+            rect_coords = self.canvas.coords(block["rect"])
+            if rect_coords[0] <= event.x <= rect_coords[2] and rect_coords[1] <= event.y <= rect_coords[3]:
+                # Prompt the user to enter a new name
+                new_name = simpledialog.askstring("Rename Block", "Enter new name for the block:")
+                if new_name:
+                    # Update the text on the canvas
+                    self.canvas.itemconfig(block["text"], text=new_name)
+                break
 
 
 if __name__ == "__main__":
